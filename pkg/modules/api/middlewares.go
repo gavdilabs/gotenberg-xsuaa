@@ -15,6 +15,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gotenberg/gotenberg/v8/pkg/gotenberg"
+	"github.com/sap/cloud-security-client-go/auth"
+	"github.com/sap/cloud-security-client-go/env"
 )
 
 var (
@@ -214,6 +216,26 @@ func loggerMiddleware(logger *zap.Logger, disableLoggingForPaths []string) echo.
 			}
 
 			return nil
+		}
+	}
+}
+
+// xsuaaAuthMiddleware manages xsuaa authentication
+func xsuaaAuthMiddleware(binding env.Identity) echo.MiddlewareFunc {
+	authMiddleware := auth.NewMiddleware(binding, auth.Options{})
+
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			req := c.Request()
+			token, cert, err := authMiddleware.AuthenticateWithProofOfPossession(req)
+			if err != nil {
+				return err
+			}
+
+			ctx := context.WithValue(context.WithValue(req.Context(), auth.TokenCtxKey, token), auth.ClientCertificateCtxKey, cert)
+			c.SetRequest(req.WithContext(ctx))
+
+			return next(c)
 		}
 	}
 }

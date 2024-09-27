@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gotenberg/gotenberg/v8/pkg/gotenberg"
+	"github.com/sap/cloud-security-client-go/env"
 )
 
 func init() {
@@ -37,6 +38,7 @@ type Api struct {
 	traceHeader               string
 	basicAuthUsername         string
 	basicAuthPassword         string
+	xsuaaBinding              env.Identity
 	downloadFromCfg           downloadFromConfig
 	disableHealthCheckLogging bool
 
@@ -176,6 +178,7 @@ func (a *Api) Descriptor() gotenberg.ModuleDescriptor {
 			fs.Duration("api-timeout", time.Duration(30)*time.Second, "Set the time limit for requests")
 			fs.String("api-root-path", "/", "Set the root path of the API - for service discovery via URL paths")
 			fs.String("api-trace-header", "Gotenberg-Trace", "Set the header name to use for identifying requests")
+			fs.Bool("api-enable-xsuaa-auth", false, "Enable XSUAA authentication - Looks at the environment variables for VCAP binding on the deployed platform. Expected to be used with SAP BTP")
 			fs.Bool("api-enable-basic-auth", false, "Enable basic authentication - will look for the GOTENBERG_API_BASIC_AUTH_USERNAME and GOTENBERG_API_BASIC_AUTH_PASSWORD environment variables")
 			fs.String("api-download-from-allow-list", "", "Set the allowed URLs for the download from feature using a regular expression")
 			fs.String("api-download-from-deny-list", "", "Set the denied URLs for the download from feature using a regular expression")
@@ -229,6 +232,16 @@ func (a *Api) Provision(ctx *gotenberg.Context) error {
 		}
 		a.basicAuthUsername = basicAuthUsername
 		a.basicAuthPassword = basicAuthPassword
+	}
+
+	enableXsuaaAuth := flags.MustBool("api-enable-xsuaa-auth")
+	if enableXsuaaAuth {
+		config, err := env.ParseIdentityConfig()
+		if err != nil {
+			return fmt.Errorf("get xsuaa binding from env: %w", err)
+		}
+
+		a.xsuaaBinding = config
 	}
 
 	// Get routes from modules.
@@ -448,6 +461,11 @@ func (a *Api) Start() error {
 	// Add the modules' routes and their specific middlewares.
 	for _, route := range a.routes {
 		var middlewares []echo.MiddlewareFunc
+
+		// XSUAA Auth?
+		if a.xsuaaBinding != nil {
+			middlewares = append(middlewares, xsuaaAuthMiddleware(a.xsuaaBinding))
+		}
 
 		// Basic auth?
 		if a.basicAuthUsername != "" {
