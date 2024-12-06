@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -235,7 +237,8 @@ func (a *Api) Provision(ctx *gotenberg.Context) error {
 	}
 
 	enableXsuaaAuth := flags.MustBool("api-enable-xsuaa-auth")
-	if enableXsuaaAuth {
+	enableXsuaaAuthEnv, _ := strconv.ParseBool(os.Getenv("ENABLE_XSUAA"))
+	if enableXsuaaAuth || enableXsuaaAuthEnv {
 		config, err := env.ParseIdentityConfig()
 		if err != nil {
 			return fmt.Errorf("get xsuaa binding from env: %w", err)

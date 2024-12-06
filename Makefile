@@ -6,7 +6,7 @@ help: ## Show the help
 it: build build-tests ## Initialize the development environment
 
 GOLANG_VERSION=1.23
-DOCKER_REGISTRY=gotenberg
+DOCKER_REGISTRY=gavdilabs.azurecr.io/tundra
 DOCKER_REPOSITORY=gotenberg
 GOTENBERG_VERSION=snapshot
 GOTENBERG_USER_GID=1001
